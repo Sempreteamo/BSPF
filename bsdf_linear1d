@@ -1,0 +1,147 @@
+library(FKF)
+
+####settings####
+set.seed(456)
+alpha = A = 0.42
+cov = B = C = D = 1
+N <- 100
+Time <- 10
+X <- matrix(0, nrow = Time, ncol = N )#particles t horizontal; N vertical
+X_true <- vector()
+obs <- vector()
+w <- matrix(NA, nrow = Time, ncol = N ) #weight
+d = 1
+L = 2
+kappa = 0.5
+mu <- vector()
+var <- vector()
+
+####FKF####
+dt <- ct <- 0
+Tt <- as.matrix(A)
+P0 <- Zt <- Ht <- Gt <- as.matrix(1)
+
+####functions####
+ESS <- function(n,w){
+  return(sum(w[n-1,])^2/sum(w[n-1,]^2))
+}
+
+Obs <- function(){
+  X_true[1] <- rnorm(d)    #real writing!
+  for(t in 2:Time){  #observations
+    X_true[t] <- rnorm(1, X_true[t-1], 1)   #t(rnorm(d) + A%*%x)
+  }
+  return(rnorm(Time) + X_true)
+}
+
+Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var){
+  if(n < L){
+    #fkf*iteration
+    fkf.ite.mu <- (fkf.mu*var[n-1] + mu.replicate*fkf.var)/(var[n-1] + fkf.var)  
+    fkf.ite.var <- fkf.var*var[n-1]/(var[n-1] + fkf.var)
+    
+    #fkf*iter*f
+    mean <- (fkf.ite.mu + A*x*fkf.ite.var)/(1 + fkf.ite.var)  
+    Var <-  fkf.ite.var/(1 + fkf.ite.var)    
+    return(list(mean = mean, Var = Var))  
+  }
+}
+
+#mu: mean=var=1
+#f: mean=Ax, var=1
+#g: mean=Cx, var=1
+
+####bspf####
+obs <- Obs()
+X0 <-  rnorm(N)  #how to define prior
+
+# n = 1
+mu <- (1+X0)/2
+var[1] <- 1/2
+mu.replicate <- mu
+for(i in 1:N){
+  X[1, i] <- rnorm(1, mu[i], var[1]) #for different x0^i, we will sample N x1？
+}
+w[1,] <- 1  #normalize: 1/N; not normalize: 1; difference?
+X.replicate <- X
+
+# n > 1
+for(n in 2:Time){
+  if(L < 1){
+    warning("error('invalid parameter: L < 1')")
+  }
+  
+  while(n < L){
+    
+    a0 <- 0
+    fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$att[n]
+    fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$Ptt[n]
+    
+    if(ESS(n,w) <= kappa*N){
+      w_ <- w[n-1,]/sum(w[n-1,])
+      s <- sample(1:N, size=N, replace=TRUE, prob=w_)  
+      
+      mu <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$mean   #a lot of mu depend on each x, or one mu?
+      var[n] <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$Var
+      
+      for(i in 1:N){
+        X[n,i] <- rnorm(1, mu[i], var[n])
+      }
+      
+      #weights
+      w[n,] <- w[n-1,]*dnorm(X[n,], obs[n])
+      
+      mu.replicate <- mu
+      n = n+1
+     
+    }else{
+      
+      mu <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var)$mean   #a lot of mu depend on each x, or one mu?
+      var[n] <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var)$Var
+      
+      for(i in 1:N){
+        X[n,i] <- rnorm(1, mu[i], var[n])
+      }
+      
+      w[n,] <- w[n-1,]*dnorm(X[n,], obs[n])
+      
+      mu.replicate <- mu
+      n = n+1
+    }
+  }
+  
+  
+  while(n >= L){
+    
+    a0 <- rnorm(1, A*X[n-1,],1)  #what is the distribution? will it change with each n?
+    fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[n-L+1:n]))$att[n]
+    fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[n-L+1:n]))$Ptt[n]
+    
+    if(ESS(n,w) <= kappa*N){
+      w_ <- w[n-1,]/sum(w[n-1,])
+      s <- sample(1:N, size=N, replace=TRUE, prob=w_)  
+  
+      mu <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$mean
+      var[n] <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$Var
+      
+      for(i in 1:N){
+        X[n,i] <- rnorm(1, mu[i], var[n])
+      }
+      
+      mu.replicate <- mu
+      
+      #weights
+      w[n,] = w[n-1,]*(2*pi*(1/2 + fkf.var))^(-1/2)*exp(-1/2*(1/2 + fkf.var)^(-1)*((A*X[n,] + X[n,])/2 - fkf.mu)^2)
+    }else{
+      
+      for(i in 1:N){
+        X.replicate[1:n,i] <- 
+        w[n,] <- w[n-1,]*(2*pi*(1/2 + fkf.var))^(-1/2)*exp(-1/2*(1/2 + fkf.var)^(-1)*((A*X[n,] + X[n,])/2 - fkf.mu)^2)
+        
+      }
+    }
+    X[1:n,,] <- X.replicate[1:n,,]
+    n = n+1
+  }
+  
+}
