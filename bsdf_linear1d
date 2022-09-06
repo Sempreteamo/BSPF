@@ -16,6 +16,7 @@ L = 2
 kappa = 0.5
 mu <- vector()
 var <- vector()
+p_y1 <- vector()
 
 ####FKF####
 dt <- ct <- 0
@@ -36,7 +37,7 @@ Obs <- function(){
 }
 
 Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var){
-  if(n < L){
+  if(n <= L){
     #fkf*iteration
     fkf.ite.mu <- (fkf.mu*var[n-1] + mu.replicate*fkf.var)/(var[n-1] + fkf.var)  
     fkf.ite.var <- fkf.var*var[n-1]/(var[n-1] + fkf.var)
@@ -78,6 +79,9 @@ for(i in 1:N){
 }
 w[1,] <- 1  #normalize: 1/N; not normalize: 1; difference?
 X <- X.replicate
+p_y1 <- dnorm(obs[1],X[1,])*dnorm(X[1,])/dnorm(X[1,],fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1],
+                                               fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])
+a0 <- X0[1]
 
 # n > 1
 for(n in 2:Time){
@@ -85,9 +89,8 @@ for(n in 2:Time){
     warning("error('invalid parameter: L < 1')")
   }
   
-  while(n < L){
+  while(n <= L){
     
-    a0 <- X0[1]
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$att[n]
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$Ptt[n]
     
@@ -104,9 +107,12 @@ for(n in 2:Time){
       
       #how to calculate weights
       if(n == 2){
-        w[n,] <- w[n-1,]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)])^(-1/2)
-        *exp(-1/2*((A+1)*X[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$att[(n-1)])^2/
-               (1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)]))    #补*p(y1)
+        w[n,] <- w[n-1,]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])^(-1/2)*
+        exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1]))*p_y1  
+      
+      }else{
+        w[n,] <- w[n-1]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[n-1])^(-1/2)*
+        exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$att[n-1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[n-1]))
       }
       
       X <- X.replicate
@@ -122,7 +128,14 @@ for(n in 2:Time){
         X.replicate[1:n,i] <- rnorm(1, mu[i], var[n])
       }
       #?????
-      w[n,] <- w[n-1,]*
+      if(n == 2){
+        w[n,] <- w[n-1,]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])^(-1/2)*
+        exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1]))*p_y1  #1:n or 1:n-1
+        
+      }else{
+        w[n,] <- w[n-1]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)])^(-1/2)*
+        exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$att[(n-1)])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)]))
+      }
       
       X <- X.replicate
       mu.replicate <- mu
@@ -131,7 +144,7 @@ for(n in 2:Time){
   }
   
   
-  while(n >= L){
+  while(n > L){
     
     a0 <- rnorm(1, A*X[n-L,],1)  
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[n-L+1:n]))$att[n]
