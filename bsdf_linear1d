@@ -186,6 +186,10 @@ for(n in 2:Time){
       mu.replicate <- mu
       
     }
-  }
-  
+  }  
+}
+
+Z = 0
+for(n in 1:Time){
+  Z = Z + log(dnorm(X[Time,n], obs[n]))
 }
