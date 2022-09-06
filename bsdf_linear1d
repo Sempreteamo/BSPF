@@ -7,6 +7,7 @@ cov = B = C = D = 1
 N <- 100
 Time <- 10
 X <- matrix(0, nrow = Time, ncol = N )#particles t horizontal; N vertical
+X.replicate <- matrix(0, nrow = Time, ncol = N )
 X_true <- vector()
 obs <- vector()
 w <- matrix(NA, nrow = Time, ncol = N ) #weight
@@ -44,6 +45,19 @@ Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var){
     mean <- (fkf.ite.mu + A*x*fkf.ite.var)/(1 + fkf.ite.var)  
     Var <-  fkf.ite.var/(1 + fkf.ite.var)    
     return(list(mean = mean, Var = Var))  
+  }else{
+    a0 <- rnorm(1, A*X[n-1-L,],1)  
+    fkf.mu.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$att[n]
+    fkf.var.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$Ptt[n]
+    
+    #fkf*fkf
+    fkf.ite.mu <- (fkf.mu*fkf.var.2 + fkf.mu.2*fkf.var)/(fkf.var.2 + fkf.var)
+    fkf.ite.mu <- fkf.var.2*fkf.var/(fkf.var.2 + fkf.var)
+    
+    #fkf*fkf*f
+    mean <- (fkf.ite.mu + A*x*fkf.ite.var)/(1 + fkf.ite.var)  
+    Var <-  fkf.ite.var/(1 + fkf.ite.var)    
+    return(list(mean = mean, Var = Var))   
   }
 }
 
@@ -60,10 +74,10 @@ mu <- (1+X0)/2
 var[1] <- 1/2
 mu.replicate <- mu
 for(i in 1:N){
-  X[1, i] <- rnorm(1, mu[i], var[1]) #for different x0^i, we will sample N x1？
+  X.replicate[1, i] <- rnorm(1, mu[i], var[1]) #for different x0^i, we will sample N x1？
 }
 w[1,] <- 1  #normalize: 1/N; not normalize: 1; difference?
-X.replicate <- X
+X <- X.replicate
 
 # n > 1
 for(n in 2:Time){
@@ -73,7 +87,7 @@ for(n in 2:Time){
   
   while(n < L){
     
-    a0 <- 0
+    a0 <- X0[1]
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$att[n]
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$Ptt[n]
     
@@ -85,26 +99,32 @@ for(n in 2:Time){
       var[n] <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$Var
       
       for(i in 1:N){
-        X[n,i] <- rnorm(1, mu[i], var[n])
+        X.replicate[1:n,i] <- rnorm(1, mu[i], var[n])
       }
       
-      #weights
-      w[n,] <- w[n-1,]*dnorm(X[n,], obs[n])
+      #how to calculate weights
+      if(n == 2){
+        w[n,] <- w[n-1,]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)])^(-1/2)
+        *exp(-1/2*((A+1)*X[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$att[(n-1)])^2/
+               (1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)]))    #补*p(y1)
+      }
       
+      X <- X.replicate
       mu.replicate <- mu
       n = n+1
-     
+      
     }else{
       
       mu <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var)$mean   #a lot of mu depend on each x, or one mu?
       var[n] <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var)$Var
       
       for(i in 1:N){
-        X[n,i] <- rnorm(1, mu[i], var[n])
+        X.replicate[1:n,i] <- rnorm(1, mu[i], var[n])
       }
+      #?????
+      w[n,] <- w[n-1,]*
       
-      w[n,] <- w[n-1,]*dnorm(X[n,], obs[n])
-      
+      X <- X.replicate
       mu.replicate <- mu
       n = n+1
     }
@@ -113,35 +133,40 @@ for(n in 2:Time){
   
   while(n >= L){
     
-    a0 <- rnorm(1, A*X[n-1,],1)  #what is the distribution? will it change with each n?
+    a0 <- rnorm(1, A*X[n-L,],1)  
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[n-L+1:n]))$att[n]
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[n-L+1:n]))$Ptt[n]
     
     if(ESS(n,w) <= kappa*N){
       w_ <- w[n-1,]/sum(w[n-1,])
       s <- sample(1:N, size=N, replace=TRUE, prob=w_)  
-  
+      
       mu <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$mean
       var[n] <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var)$Var
       
       for(i in 1:N){
-        X[n,i] <- rnorm(1, mu[i], var[n])
+        X.replicate[n-L+1:n,i] <- rnorm(1, mu[i], var[n])
       }
-      
-      mu.replicate <- mu
       
       #weights
       w[n,] = w[n-1,]*(2*pi*(1/2 + fkf.var))^(-1/2)*exp(-1/2*(1/2 + fkf.var)^(-1)*((A*X[n,] + X[n,])/2 - fkf.mu)^2)
+      
+      X <- X.replicate
+      mu.replicate <- mu
+      n = n+1
     }else{
       
+      mu <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var)$mean   #a lot of mu depend on each x, or one mu?
+      var[n] <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var)$Var
+      
       for(i in 1:N){
-        X.replicate[1:n,i] <- 
-        w[n,] <- w[n-1,]*(2*pi*(1/2 + fkf.var))^(-1/2)*exp(-1/2*(1/2 + fkf.var)^(-1)*((A*X[n,] + X[n,])/2 - fkf.mu)^2)
-        
+        X.replicate[n-L+1:n,i] <- rnorm(1, mu[i], var[n])
       }
+      
+      X <- X.replicate
+      mu.replicate <- mu
+      n = n+1
     }
-    X[1:n,,] <- X.replicate[1:n,,]
-    n = n+1
   }
   
 }
