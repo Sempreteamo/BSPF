@@ -52,7 +52,7 @@ Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var){
     }else{
       a0 <- rnorm(1, X[n-1-L,], 1)
     }
-    fkf.mu.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$att[L]
+    fkf.mu.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$att[L]  #1 or L?
     fkf.var.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$Ptt[L]
     
     #fkf*fkf
@@ -72,20 +72,24 @@ Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var){
 
 ####bspf####
 obs <- Obs()
-X0 <-  rnorm(N)  #how to define prior
+a0 = 0
+fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs))$logLik
+X0 <-  rnorm(1)  
+#X0 <-  rnorm(N)
 
 # n = 1
 mu <- (1+X0)/2
 var[1] <- 1/2
 mu.replicate <- mu
-for(i in 1:N){
-  X.replicate[1, i] <- rnorm(1, mu[i], var[1]) #for different x0^i, we will sample N x1？
-}
-w[1,] <- 1  #normalize: 1/N; not normalize: 1; difference?
+X.replicate[1, ] <- rnorm(N, mu, var[1])
+#for(i in 1:N){
+  #X.replicate[1, i] <- rnorm(1, mu[i], var[1]) #for different x0^i, we will sample N x1？
+#}
+w[1,] <- 1  
 X <- X.replicate
 a0 <- X0[1]
-p_y1 <- dnorm(obs[1],X[1,])*dnorm(X[1,])/dnorm(X[1,],fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1],
-                                               fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])
+#p_y1 <- dnorm(obs[1], (1+X[1,])/2, 1/2)/dnorm(X[1,],fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1],
+                                               #fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])
 
 # n > 1
 for(n in 2:Time){
@@ -111,12 +115,10 @@ for(n in 2:Time){
       
       #how to calculate weights
       if(n == 2){
-        w[n,] <- w[n-1,]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])^(-1/2)*
-        exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1]))*p_y1  
+        w[n,] <- w[n-1,]
       
       }else{
-        w[n,] <- w[n-1]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[n-1])^(-1/2)*
-        exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$att[n-1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[n-1]))
+        w[n,] <- w[n-1,]
       }
       
       X <- X.replicate
@@ -133,11 +135,10 @@ for(n in 2:Time){
       }
       #?????
       if(n == 2){
-        w[n,] <- w[n-1,]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])^(-1/2)*
-          exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1]))*p_y1  #1:n or 1:n-1
+        w[n,] <- w[n-1,]
         
       }else{
-        w[n,] <- w[n-1]*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)])^(-1/2)*exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$att[(n-1)])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:(n-1)]))$Ptt[(n-1)]))
+        w[n,] <- w[n-1,]
       }
       
       X <- X.replicate
@@ -186,10 +187,12 @@ for(n in 2:Time){
       mu.replicate <- mu
       
     }
-  }  
+  }
 }
 
 Z = 0
 for(n in 1:Time){
-  Z = Z + log(dnorm(X[Time,n], obs[n]))
+  Z = Z + log(mean(apply(as.matrix(X[Time,]),1,function(x) dnorm(x, obs[Time]))))
 }
+#*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])^(-1/2)*
+#exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1]))*p_y1  
