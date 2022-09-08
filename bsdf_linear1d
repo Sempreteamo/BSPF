@@ -47,13 +47,15 @@ Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var){
     Var <-  fkf.ite.var/(1 + fkf.ite.var)    
     return(list(mean = mean, Var = Var))  
   }else{
-    if((n-1-L)==0){
+    if((n-L)==0){
       a0 <- rnorm(1, X0, 1)
     }else{
-      a0 <- rnorm(1, X[n-1-L,], 1)
+      a0 <- rnorm(1, X[n-L,], 1)
     }
-    fkf.mu.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$att[L]  #1 or L?
-    fkf.var.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L):(n-1)]))$Ptt[L]
+    
+    #修改！！
+    fkf.mu.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):(n-1)]))$att[1] #1 or L?
+    fkf.var.2 <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):(n-1)]))$Ptt[1]
     
     #fkf*fkf
     fkf.ite.mu <- (fkf.mu*fkf.var.2 + fkf.mu.2*fkf.var)/(fkf.var.2 + fkf.var)
@@ -191,8 +193,8 @@ for(n in 2:Time){
 }
 
 Z = 0
-for(n in 1:Time){
-  Z = Z + log(mean(apply(as.matrix(X[Time,]),1,function(x) dnorm(x, obs[Time]))))
+for(n in 1:(Time)){   #??
+  Z = Z + log(mean(apply(as.matrix(X[n,]),1,function(x) dnorm(x, obs[n]))))
 }
 #*(pi + 2*pi*fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1])^(-1/2)*
 #exp((-1/2)*((A+1)*X.replicate[n,]/2 - fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$att[1])^2/(1/2 + fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1]))$Ptt[1]))*p_y1  
