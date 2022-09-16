@@ -4,15 +4,15 @@ library(FKF)
 set.seed(456)
 alpha = A = 0.42
 cov = B = C = D = 1
-N <- 1000 
+N <- 100
 Time <- 10
-L = 2
+L = 1
 X <- matrix(0, nrow = Time, ncol = N )#particles t horizontal; N vertical
 X.replicate <- matrix(0, nrow = Time, ncol = N )
 X_true <- vector()
 obs <- vector()
 w <- matrix(NA, nrow = Time, ncol = N ) #weight
-kappa = 0.5
+kappa = 0.8
 mu <- vector()
 var <- vector()
 
@@ -86,7 +86,9 @@ X0 <-  rnorm(1)
 # n = 1
 mu <- (1+X0)/2
 var[L] <- 1/2
+#var[1] <- 1/2
 mu.replicate <- mu
+#X.replicate[1, ] <- rnorm(N, mu, var[1])
 X.replicate[L, ] <- rnorm(N, mu, var[L])
 X <- X.replicate
 a0 <- X0
@@ -96,6 +98,7 @@ fkf.mu <- vector()
 fkf.var <- vector()
 rc = 0
 w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
+#w[1,] <- log(1/N)
 
 # n > 1
 for(n in (L+1):Time){
@@ -108,55 +111,65 @@ for(n in (L+1):Time){
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$att[n]
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$Ptt[n]
     
-   
+    
     mu <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var, X)$mean   #a lot of mu depend on each x, or one mu?
     var[n] <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var, X)$Var
-      
+    
     for(i in 1:N){
       X.replicate[1:n,i] <- rnorm(1, mu[i], var[n])
     }
-      
+    
     if(n == L){
-      w[n,] <- exp(fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik)
-        
+      w[n,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
+      
     }else{
       w[n,] <- w[n-1,]
     }
-      
+    
     X <- X.replicate
     mu.replicate <- mu
-      
+    
   }
   
   if(n > L){
-    #a0 <- 
-    
-    
-    fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
-    fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt
-    
-    if(ESS(n,w, is.log = TRUE) <= kappa*N){
+  
+    if(ESS(n,w, is.log =  TRUE) <= kappa*N){
       rc = rc + 1
       
       w_ <- w[n-1,]/sum(w[n-1,])
       s <- sample(1:N, size=N, replace=TRUE, prob=w_)  
       
-      mu <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var, X)$mean
-      var[n] <- Dist(X[n-1, s], n, var, mu.replicate, fkf.mu, fkf.var, X)$Var
-      
       mx <- max(w[n-1, ])
       Z = Z + log(mean(exp(w[n-1, ]-mx)))+mx
       
       for(i in 1:N){
-        X.replicate[(n-L+1):n,i] <- rnorm(1, mu[i], var[n])
-      }
-      
-      #weights
-      if(L == 1){
-        w[n,] = w[n-1,] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,])^2/2) )
-      }else{
-        w[n,] = w[n-1,] +log((2*pi*(1/2 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(1/2 + fkf.var[L-1])^(-1)*((A+1)*X.replicate[n-1,]/2 - fkf.mu[L-1])^2))
+        a0 <- X[n-L,s[i]]
+        fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
+        fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt
         
+        mu <- Dist(X[n-1, s[i]], n, var, mu.replicate, fkf.mu, fkf.var, X)$mean
+        var[n] <- Dist(X[n-1, s[i]], n, var, mu.replicate, fkf.mu, fkf.var, X)$Var
+        
+        X.replicate[(n-L+1):n,i] <- rnorm(1, mu, var[n])
+        
+        #weights
+        if(L == 1){
+          
+          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,i])^2/2) )
+          
+          #dnorm(obs[n], X.replicate[n,], log = TRUE)
+          #w[n-1,] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,])^2/2) )
+          
+        }else{
+          w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
+            (-1/2)*((A-1)*X.replicate[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X.replicate[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
+            (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
+          
+          #dnorm(obs[n], X.replicate[n,], log = TRUE) + dnorm(X[n-1,], fkf.mu[L-1], fkf.var[L-1], log = TRUE)
+          #log((2*pi*(1 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(fkf.mu[L-1] - A*X.replicate[n-1,])^2/(1 + fkf.var[L-1])))
+          #w[n-1,] +log((2*pi*(1/2 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(1/2 + fkf.var[L-1])^(-1)*((A+1)*X.replicate[n-1,]/2 - fkf.mu[L-1])^2))
+          
+        }
       }
       
       X <- X.replicate
@@ -164,21 +177,34 @@ for(n in (L+1):Time){
       
     }else{
       
-      mu <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var, X)$mean   #a lot of mu depend on each x, or one mu?
-      var[n] <- Dist(X[n-1, ], n, var, mu.replicate, fkf.mu, fkf.var, X)$Var
-      
       for(i in 1:N){
-        X.replicate[(n-L+1):n,i] <- rnorm(1, mu[i], var[n])
-      }
-      
-      #weights
-      if(L == 1){
-        w[n,] = w[n-1,] +log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,])^2/2))
-      }else{
-        w[n,] = w[n-1,] +log((2*pi*(1/2 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(1/2 + fkf.var[L-1])^(-1)*((A+1)*X.replicate[n-1,]/2 - fkf.mu[L-1])^2))
+        a0 <- X[n-L,i]
+        fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
+        fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt
         
-      } 
-      
+        mu <- Dist(X[n-1, i], n, var, mu.replicate, fkf.mu, fkf.var, X)$mean   #a lot of mu depend on each x, or one mu?
+        var[n] <- Dist(X[n-1, i], n, var, mu.replicate, fkf.mu, fkf.var, X)$Var
+        
+        X.replicate[(n-L+1):n,i] <- rnorm(1, mu, var[n])
+        
+        #weights
+        if(L == 1){
+          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X[n-1,i])^2/2))
+          #dnorm(obs[n], X.replicate[n,], log = TRUE)
+          #log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,])^2/2))
+        }else{
+          w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
+            (-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
+            (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
+          
+          #dnorm(obs[n], X.replicate[n,], log = TRUE) + dnorm(X[n-1,], fkf.mu[L-1], fkf.var[L-1], log = TRUE)
+          #log((2*pi*(1 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(fkf.mu[L-1] - A*X.replicate[n-1,])^2/(1 + fkf.var[L-1])))
+          #log((2*pi*(1/2 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*((A+1)*X.replicate[n-1,]/2 - fkf.mu[L-1])^2)/(1/2 + fkf.var[L-1]))
+          
+        } 
+        
+      }
+    
       X <- X.replicate
       mu.replicate <- mu
       
