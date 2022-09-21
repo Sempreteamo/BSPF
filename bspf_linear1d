@@ -1,25 +1,23 @@
 library(FKF)
-
-####settings####
-set.seed(456)
-alpha = A = 0.42
-cov = B = C = D = 1
-N <- 100
-Time <- 10
-L = 9
-X <- matrix(0, nrow = Time, ncol = N )#particles t horizontal; N vertical
-X.replicate <- matrix(0, nrow = Time, ncol = N )
+set.seed(123)
+N=100
+Time = 10
+L = 1
+Z = 0
+X <- matrix(NA, Time, N)
+w <- matrix(NA, Time, N)
+X1 <- rnorm(1)
 X_true <- vector()
 obs <- vector()
-w <- matrix(NA, nrow = Time, ncol = N ) #weight
-kappa = 0.95
+kappa = 0.5
+fkf.mu <- vector()
+fkf.var <- vector()
 
-####FKF####
 dt <- ct <- 0
 Tt <- as.matrix(A)
 P0 <- Zt <- Ht <- Gt <- as.matrix(1)
+a0 <- X1
 
-####functions####
 ESS <- function(n,w, is.log=FALSE){
   if(is.log) {
     mx <- max(w[n-1,])
@@ -39,254 +37,101 @@ Obs <- function(){
   }
   return(rnorm(Time) + X_true)
 }
+obs <- Obs()
+fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:Time]))$logLik 
 
-Dist <- function(x, n, var, mu.replicate, fkf.mu, fkf.var, i){
-  if(n == L){
-    if(L != 1){
-      #sd.sum = 0
-      #mu = 0
-      #sd.pro = 1
-      #mix = 0
-      #for(i in 1:L){
-        #sd.sum = sd.sum + 1/fkf.var[i]
-        #mu = mu + fkf.mu[i]/fkf.var[i]
-        #sd.pro = sd.pro*fkf.var[i]
-        #mix = mix + fkf.mu[i]^2/fkf.var[i]
-      #}
-      #sd.sum = (sd.sum-1/fkf.var[1]+L+1)^(-1/2)
-      #mu = sd.sum^2*(mu-fkf.mu[1]/fkf.var[1] + (L-1)*A*x+x+1)
-      #mix = mix + (L-1)*(A*x)^2 + x^2 + 1
-      
-      #S = (2*pi)^((1-2*L)/2)*sd.sum*exp(mu^2/(2*sd.sum^2) - mix/2)
-      
-      #return(list(mean = mu, Var = sd.sum, S = S))  
-      fkf.mu.2 <- fkf.mu[L]
-      fkf.var.2 <- fkf.var[L]
-      
-      for(p in 2:(L-1)){
-        #fkf*f
-        fkf.f.mu <- (A*x*fkf.var[p] + fkf.mu[p])/(fkf.var[p] + 1)
-        fkf.f.var <- fkf.var[p]/(fkf.var[p] + 1)
-        
-        #fkf*fkf*f
-        fkf.mu.2 <- (fkf.mu.2*fkf.f.var + fkf.f.mu*fkf.var.2)/(fkf.f.var + fkf.var.2)
-        fkf.var.2 <- fkf.f.var*fkf.var.2/(fkf.f.var + fkf.var.2)
-      }
-      fkf.f.mu <- (1 + X0 + A*x)/2
-      fkf.f.var <- 1/3
-      
-      fkf.mu.2 <- (fkf.mu.2*fkf.f.var + fkf.f.mu*fkf.var.2)/(fkf.f.var + fkf.var.2)
-      fkf.var.2 <- fkf.f.var*fkf.var.2/(fkf.f.var + fkf.var.2)
-      #fkf*iteration
-      #fkf.ite.mu <- (fkf.mu*var[n-1] + mu.replicate*fkf.var)/(var[n-1] + fkf.var)  
-      #fkf.ite.var <- fkf.var*var[n-1]/(var[n-1] + fkf.var)
-      
-      #fkf*iter*f
-      #mean <- (fkf.ite.mu + A*x*fkf.ite.var)/(1 + fkf.ite.var)  
-      #Var <-  fkf.ite.var/(1 + fkf.ite.var)    
-      return(list(mean = fkf.mu.2, Var = fkf.var.2, S = 1))  
-    }else{
-      
-      mean <- (x+1)/2    #mu*g
-      Var <- 1/2
-      return(list(mean = mean, Var = Var, S = 1))
-    }
-    
+#n = L
+Init <- function(){
+  #X_1:L sample from q(x_1:L)=p(x_1:L|y_1:L)=p(x_L|y_1:L)*(from 1:n-1 p(x_p|y_1:p)*f)
+  if(L == 1){
+    X[1,] <- rnorm(N, (1+X1)/2, sqrt(1/2))
+    w[1,] <- 1
   }else{
-    if(L != 1){
-      #sd.sum = 0
-      #mu = 0
-      #sd.pro = 1
-      #mix = 0
-      #for(i in 1:L){
-        #sd.sum = sd.sum + 1/fkf.var[i]
-        #mu = mu + fkf.mu[i]/fkf.var[i]
-        #sd.pro = sd.pro*fkf.var[i]
-        #mix = mix + fkf.mu[i]^2/fkf.var[i]
-      #}
-      #sd.sum = (sd.sum+L-1)^(-1/2)
-      #mu = sd.sum^2*(mu + (L-1)*A*x)
-      #mix = mix + (L-1)*(A*x)^2
-      
-      #S = (2*pi)^((2-2*L)/2)*sd.sum*exp(mu^2/(2*sd.sum^2) - mix/2)
-      
-      #return(list(mean = mu, Var = sd.sum, S = S))  
-      
-      fkf.mu.2 <- fkf.mu[L]
-      fkf.var.2 <- fkf.var[L]
-      
-      for(p in 2:(L-1)){
-        #fkf*f
-        fkf.f.mu <- (A*x*fkf.var[p] + fkf.mu[p])/(fkf.var[p] + 1)
-        fkf.f.var <- fkf.var[p]/(fkf.var[p] + 1)
-        #[n-L+p, i]
-        #fkf*fkf*f
-        fkf.mu.2 <- (fkf.mu.2*fkf.f.var + fkf.f.mu*fkf.var.2)/(fkf.f.var + fkf.var.2)
-        fkf.var.2 <- fkf.f.var*fkf.var.2/(fkf.f.var + fkf.var.2)
+    fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$att
+    fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$Ptt
+    X[L,] <- rnorm(N, fkf.mu[L], sqrt(fkf.var[L]))
+    
+    for(p in (L-1):1){
+      for(i in 1:N){
+        X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(fkf.var[p] + 1),sqrt(fkf.var[p]/(fkf.var[p] + 1)))
       }
-      
-      return(list(mean = fkf.mu.2, Var = fkf.var.2, S = 1))   
-    }else{
-      mean <- (A+1)*x/2    #f*g
-      Var <- 1/2
-      return(list(mean = mean, Var = Var, S = 1))
     }
+    w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
+    
   }
+  return(list(X=X, w=w))
 }
 
-#mu: mean=var=1
-#f: mean=Ax, var=1
-#g: mean=Cx, var=1
+X <- Init()$X
+w <- Init()$w
 
-####bspf####
-obs <- Obs()
-X0 <-  rnorm(1)  
-
-# n = 1
-#mu <- (1+X0)/2
-#var[L] <- 1/2
-#var[1] <- 1/2
-#mu.replicate <- mu
-#X.replicate[1, ] <- rnorm(N, mu, var[1])
-#X.replicate[L, ] <- rnorm(N, mu, var[L])
-#X <- X.replicate
-a0 <- X0
-fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:Time]))$logLik 
-Z <- 0
-fkf.mu <- vector()
-fkf.var <- vector()
-rc = 0
-#w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
-#w[1,] <- log(1/N)
-
-# n > 1
-for(n in L:Time){
-  if(L < 1){
-    warning("error('invalid parameter: L < 1')")
-  }
-  
-  if(n == L){
-    
-    fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$att
-    fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:n]))$Ptt
-    
-    
-    mu <- Dist(X0, n, var, mu.replicate, fkf.mu, fkf.var, 1)$mean   
-    var <- Dist(X0, n, var, mu.replicate, fkf.mu, fkf.var, 1)$Var
-    S <- Dist(X0, n, var, mu.replicate, fkf.mu, fkf.var, 1)$S
-    
-    X.replicate[1:n,] <- S*rnorm(N, mu, sqrt(var))   #N? a0?
-    #for(i in 1:N){
-      #X.replicate[1:n,i] <- rnorm(1, mu[i], var[n])
-    #}
-    
-    #if(n == L){
-    w[n,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
-      
-    #}else{
-      #w[n,] <- w[n-1,]
-    #}
-    
-    X <- X.replicate
-    mu.replicate <- mu
-    
-  }
-  
-  if(n > L){
-  
+bspf <- function(){
+  for(n in (L+1):Time){
     if(ESS(n,w, is.log =  TRUE) <= kappa*N){
-      rc = rc + 1
-      
       w_ <- w[n-1,]/sum(w[n-1,])
-      s <- sample(1:N, size=N, replace=TRUE, prob=w_)  
-      
+      s <- sample(1:N, size=N, replace=TRUE, prob=w_) 
       mx <- max(w[n-1, ])
       Z = Z + log(mean(exp(w[n-1, ]-mx)))+mx
       
       for(i in 1:N){
-        a0 <- X[n-L,s[i]]
-        fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
-        fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt
-        
-        mu <- Dist(X[n-1,s[i]], n, var, mu.replicate, fkf.mu, fkf.var, i)$mean
-        var <- Dist(X[n-1,s[i]], n, var, mu.replicate, fkf.mu, fkf.var, i)$Var
-        S <-  Dist(X[n-1,s[i]], n, var, mu.replicate, fkf.mu, fkf.var, i)$S
-        
-        X.replicate[(n-L+1):n,i] <- S*rnorm(1, mu, sqrt(var))
-        
-        #weights
         if(L == 1){
-          
-          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,i])^2/2) )
-          
-          #dnorm(obs[n], X.replicate[n,], log = TRUE)
-          #w[n-1,] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,])^2/2) )
+          for(i in 1:N){
+            X[n,i] <- rnorm(1, (A+1)*X[n-1,s[i]]/2, sqrt(1/2))
+            w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X[n-1,s[i]])^2/2)) #?
+          }
           
         }else{
-          w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-            (-1/2)*((A-1)*X.replicate[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X.replicate[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
-            (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
+          for(i in 1:N){
+            a0 <- X[n-L,s[i]]
+            fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
+            fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt 
+            X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
             
-            #log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-            #(-1/2)*((A-1)*X.replicate[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X.replicate[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
-            #(-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
-          
-           #log((2*pi*(1 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(fkf.mu[L-1] - A*X[n-1,i])^2/(1 + fkf.var[L-1])))
-          #log((2*pi*(1/2 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(1/2 + fkf.var[L-1])^(-1)*((A+1)*X[n-1,i]/2 - fkf.mu[L-1])^2))
-          
+            for(p in (n-1):(n-L+1)){
+              for(m in 1:N){
+                X[p,m] <- rnorm(1, (A*X[p+1,s[m]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
+              }
+            }
+            
+            w[n,i] <- w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
+              (-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
+              (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])  #?
+          }
         }
       }
-      
-      X <- X.replicate
-      mu.replicate <- mu
-      
     }else{
-      
-      for(i in 1:N){
-        a0 <- X[n-L,i]
-        fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
-        fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt
+      if(L == 1){
+        for(i in 1:N){
+          X[n,i] <- rnorm(1, (A+1)*X[n-1,i]/2, sqrt(1/2))
+          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X[n-1,i])^2/2) )
+        }
         
-        mu <- Dist(X[n-1,i], n, var, mu.replicate, fkf.mu, fkf.var, i)$mean   #a lot of mu depend on each x, or one mu?
-        var <- Dist(X[n-1,i], n, var, mu.replicate, fkf.mu, fkf.var, i)$Var
-        S <-  Dist(X[n-1,s[i]], n, var, mu.replicate, fkf.mu, fkf.var, i)$S
-        
-        X.replicate[(n-L+1):n,i] <- S*rnorm(1, mu, sqrt(var))
-        
-        #weights
-        if(L == 1){
-          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,i])^2/2))
-          #dnorm(obs[n], X.replicate[n,], log = TRUE)
-          #log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X.replicate[n-1,])^2/2))
-        }else{
+      }else{
+        for(i in 1:N){
+          a0 <- X[n-L,i]
+          fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
+          fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt 
+          X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
+          
+          for(p in (n-1):(n-L+1)){
+            for(m in 1:N){
+              X[p,m] <- rnorm(1, (A*X[p+1,m]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
+            }
+          }
+          
           w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-            (-1/2)*((A-1)*X.replicate[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X.replicate[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
+            (-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
             (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
-            
-            #log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-            #(-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
-            #(-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
-            
-            #log((2*pi*(2+1/fkf.var[2])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[2])^(1/2)) +
-            #(-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[2]) + (-1/2)*(A*X[n-1,i] - fkf.mu[2])^2*fkf.var[2]/(2+fkf.var[2]) +
-            #(-1/2)*(fkf.mu[2] - fkf.var[2])^2*fkf.var[2]/(2+fkf.var[2])
-          
-          #log((2*pi*(1 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*(fkf.mu[L-1] - A*X.replicate[n-1,])^2/(1 + fkf.var[L-1])))
-          #log((2*pi*(1/2 + fkf.var[L-1]))^(-1/2)*exp((-1/2)*((A+1)*X.replicate[n-1,]/2 - fkf.mu[L-1])^2)/(1/2 + fkf.var[L-1]))
-          
-        } 
-        
+        }
       }
-    
-      X <- X.replicate
-      mu.replicate <- mu
-      
     }
   }
-}
-mx <- max(w[Time,])
-Z <- Z + log(mean(exp(w[Time,]-mx)))+mx
+  mx <- max(w[Time,])
+  Z <- Z + log(mean(exp(w[Time,]-mx)))+mx
+  return(list(X=X, w=w, Z=Z))
+}  
 
-rc
-Z
+X <- bspf()$X
+w <- bspf()$w
+Z <- bspf()$Z
 exp(Z-fkf.obj)
