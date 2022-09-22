@@ -3,6 +3,7 @@ set.seed(123)
 N=100
 Time = 10
 L = 1
+A = 0.42
 Z = 0
 X <- matrix(NA, Time, N)
 w <- matrix(NA, Time, N)
@@ -77,7 +78,7 @@ bspf <- function(){
         if(L == 1){
           for(i in 1:N){
             X[n,i] <- rnorm(1, (A+1)*X[n-1,s[i]]/2, sqrt(1/2))
-            w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X[n-1,s[i]])^2/2)) #?
+            w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,i]-X[n,i])^2/2)) #?
           }
           
         }else{
@@ -94,8 +95,8 @@ bspf <- function(){
             }
             
             w[n,i] <- w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-              (-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
-              (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])  #?
+              (-1/2)*(A*X[n-1,i]-X[n,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
+              (-1/2)*(fkf.mu[L-1] - X[n,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
           }
         }
       }
@@ -103,7 +104,7 @@ bspf <- function(){
       if(L == 1){
         for(i in 1:N){
           X[n,i] <- rnorm(1, (A+1)*X[n-1,i]/2, sqrt(1/2))
-          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*((A-1)*X[n-1,i])^2/2) )
+          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,i]-X[n,i])^2/2) )
         }
         
       }else{
@@ -120,8 +121,8 @@ bspf <- function(){
           }
           
           w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-            (-1/2)*((A-1)*X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1]) +
-            (-1/2)*(fkf.mu[L-1] - fkf.var[L-1])^2*fkf.var[L-1]/(2+fkf.var[L-1])
+            (-1/2)*(A*X[n-1,i]-X[n,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
+            (-1/2)*(fkf.mu[L-1] - X[n,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
         }
       }
     }
@@ -131,7 +132,7 @@ bspf <- function(){
   return(list(X=X, w=w, Z=Z))
 }  
 
-X <- bspf()$X
-w <- bspf()$w
+#X <- bspf()$X
+#w <- bspf()$w
 Z <- bspf()$Z
 exp(Z-fkf.obj)
