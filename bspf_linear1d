@@ -2,7 +2,7 @@ library(FKF)
 set.seed(123)
 N=100
 Time = 10
-L = 1
+L = 9
 A = 0.42
 Z = 0
 X <- matrix(NA, Time, N)
@@ -89,13 +89,11 @@ bspf <- function(){
             X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
             
             for(p in (n-1):(n-L+1)){
-              for(m in 1:N){
-                X[p,m] <- rnorm(1, (A*X[p+1,s[m]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
-              }
+              X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
             }
             
             w[n,i] <- w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-              (-1/2)*(A*X[n-1,i]-X[n,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
+              (-1/2)*(A*X[n-1,s[i]]-X[n,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
               (-1/2)*(fkf.mu[L-1] - X[n,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
           }
         }
@@ -115,9 +113,7 @@ bspf <- function(){
           X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
           
           for(p in (n-1):(n-L+1)){
-            for(m in 1:N){
-              X[p,m] <- rnorm(1, (A*X[p+1,m]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
-            }
+            X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
           }
           
           w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
