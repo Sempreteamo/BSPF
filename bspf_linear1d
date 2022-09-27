@@ -2,8 +2,8 @@ library(FKF)
 set.seed(123)
 N=100
 Time = 10
-L = 7
-A = 0.42
+L = 1
+A = 1
 Z = 0
 X <- matrix(NA, Time, N)
 X_ <- matrix(NA, Time, N)
@@ -35,7 +35,7 @@ ESS <- function(n,w, is.log=FALSE){
 Obs <- function(){
   X_true[1] <- rnorm(1)   
   for(t in 2:Time){  #observations
-    X_true[t] <- rnorm(1, X_true[t-1], 1)   #t(rnorm(d) + A%*%x)
+    X_true[t] <- rnorm(1, A*X_true[t-1], 1)   #t(rnorm(d) + A%*%x)
   }
   return(rnorm(Time) + X_true)
 }
@@ -46,7 +46,7 @@ fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:Time]))$logLik
 Init <- function(){
   #X_1:L sample from q(x_1:L)=p(x_1:L|y_1:L)=p(x_L|y_1:L)*(from 1:n-1 p(x_p|y_1:p)*f)
   if(L == 1){
-    X[1,] <- rnorm(N, (1+X1)/2, sqrt(1/2))
+    X[1,] <- rnorm(N, (1 + obs[1])/2, sqrt(1/2))
     w[1,] <- 1
   }else{
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$att
@@ -55,7 +55,7 @@ Init <- function(){
     
     for(p in (L-1):1){
       for(i in 1:N){
-        X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(fkf.var[p] + 1),sqrt(fkf.var[p]/(fkf.var[p] + 1)))
+        X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(A^2*fkf.var[p] + 1),sqrt(fkf.var[p]/(A^2*fkf.var[p] + 1)))
       }
     }
     w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
@@ -78,10 +78,10 @@ bspf <- function(){
       for(i in 1:N){
         if(L == 1){
           for(i in 1:N){
-            X[n,i] <- rnorm(1, (A+1)*X[n-1,s[i]]/2, sqrt(1/2))
+            X_[n,i] <- rnorm(1, (A*X[n-1,s[i]] + obs[n])/2, sqrt(1/2))
             w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,i]-X[n,i])^2/2)) #?
           }
-          
+          X[n,] <- X_[n,]
         }else{
           for(i in 1:N){
             a0 <- X[n-L,s[i]]
@@ -90,8 +90,9 @@ bspf <- function(){
             X_[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
             
             for(p in (n-1):(n-L+1)){
-              X_[p,i] <- rnorm(1, (A*X_[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
+              X_[p,i] <- rnorm(1, (A*X_[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
             }
+            
             
             w[n,i] <- w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
               (-1/2)*(A*X[n-1,s[i]]-X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,s[i]] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
@@ -103,10 +104,10 @@ bspf <- function(){
     }else{
       if(L == 1){
         for(i in 1:N){
-          X[n,i] <- rnorm(1, (A+1)*X[n-1,i]/2, sqrt(1/2))
+          X_[n,i] <- rnorm(1, (A*X[n-1,] + obs[n])/2, sqrt(1/2))
           w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,i]-X[n-1,i])^2/2) )
         }
-        
+        X[n,] <- X_[n,]
       }else{
         for(i in 1:N){
           a0 <- X[n-L,i]
@@ -115,7 +116,7 @@ bspf <- function(){
           X_[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
           
           for(p in (n-1):(n-L+1)){
-            X_[p,i] <- rnorm(1, (A*X_[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(fkf.var[p-n+L] + 1)))
+            X_[p,i] <- rnorm(1, (A*X_[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
           }
           
           w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
