@@ -1,9 +1,9 @@
 library(FKF)
 set.seed(123)
-N=100
-Time = 10
+N=1000
+Time = 100
 L = 1
-A = 1
+A = 0.42
 Z = 0
 X <- matrix(NA, Time, N)
 X_ <- matrix(NA, Time, N)
@@ -35,7 +35,7 @@ ESS <- function(n,w, is.log=FALSE){
 Obs <- function(){
   X_true[1] <- rnorm(1)   
   for(t in 2:Time){  #observations
-    X_true[t] <- rnorm(1, A*X_true[t-1], 1)   #t(rnorm(d) + A%*%x)
+    X_true[t] <- rnorm(1) + A*X_true[t-1] 
   }
   return(rnorm(Time) + X_true)
 }
@@ -73,15 +73,16 @@ bspf <- function(){
       w_ <- w[n-1,]/sum(w[n-1,])
       s <- sample(1:N, size=N, replace=TRUE, prob=w_) 
       mx <- max(w[n-1, ])
-      Z = Z + log(mean(exp(w[n-1, ]-mx)))+mx
+      Z = Z + log(mean(w[n-1, ]))
       
-      for(i in 1:N){
         if(L == 1){
           for(i in 1:N){
-            X_[n,i] <- rnorm(1, (A*X[n-1,s[i]] + obs[n])/2, sqrt(1/2))
-            w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,i]-X[n,i])^2/2)) #?
+            X[n,i] <- rnorm(1, (A*X[n-1,s[i]] + obs[n])/2, sqrt(1/2))
+              
+            w[n,i] = w[n-1,i]*exp((-1/2)*(A*X[n-1,s[i]]-obs[n])^2/2)/sqrt(4*pi) #?
+            
           }
-          X[n,] <- X_[n,]
+          
         }else{
           for(i in 1:N){
             a0 <- X[n-L,s[i]]
@@ -100,14 +101,15 @@ bspf <- function(){
           }
           X[(n-L+1):n,] <- X_[(n-L+1):n,]
         }
-      }
+      
     }else{
       if(L == 1){
         for(i in 1:N){
-          X_[n,i] <- rnorm(1, (A*X[n-1,] + obs[n])/2, sqrt(1/2))
-          w[n,i] = w[n-1,i] + log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,i]-X[n-1,i])^2/2) )
+          X[n,i] <- rnorm(1, (A*X[n-1,i] + obs[n])/2, sqrt(1/2))
+            
+          w[n,i] = w[n-1,i]*exp((-1/2)*(A*X[n-1,i]-obs[n])^2/2)/sqrt(4*pi)
         }
-        X[n,] <- X_[n,]
+        
       }else{
         for(i in 1:N){
           a0 <- X[n-L,i]
@@ -129,7 +131,7 @@ bspf <- function(){
     }
   }
   mx <- max(w[Time,])
-  Z <- Z + log(mean(exp(w[Time,]-mx)))+mx
+  Z <- Z + log(mean(w[Time,]))
   
   return(list(X=X, w=w, Z=Z))
 }  
