@@ -1,7 +1,7 @@
 library(FKF)
 set.seed(123)
-N=1000
-Time = 100
+N=100
+Time = 10
 L = 1
 A = 0.42
 Z = 0
@@ -18,7 +18,7 @@ fkf.var <- vector()
 dt <- ct <- 0
 Tt <- as.matrix(A)
 P0 <- Zt <- Ht <- Gt <- as.matrix(1)
-a0 <- X1
+a0 <- 0
 
 ESS <- function(n,w, is.log=FALSE){
   if(is.log) {
@@ -40,15 +40,16 @@ Obs <- function(){
   return(rnorm(Time) + X_true)
 }
 obs <- Obs()
-fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:Time]))$logLik 
+fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs))$logLik 
 
 #n = L
 Init <- function(){
   #X_1:L sample from q(x_1:L)=p(x_1:L|y_1:L)=p(x_L|y_1:L)*(from 1:n-1 p(x_p|y_1:p)*f)
   if(L == 1){
     X[1,] <- rnorm(N, (1 + obs[1])/2, sqrt(1/2))
-    w[1,] <- 1
+    w[1,] <- log((4*pi)^(-1/2)*exp((-1/2)*(1-X1)^2/2))
   }else{
+    a0 <- X1
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$att
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$Ptt
     X[L,] <- rnorm(N, fkf.mu[L], sqrt(fkf.var[L]))
@@ -73,13 +74,13 @@ bspf <- function(){
       w_ <- w[n-1,]/sum(w[n-1,])
       s <- sample(1:N, size=N, replace=TRUE, prob=w_) 
       mx <- max(w[n-1, ])
-      Z = Z + log(mean(w[n-1, ]))
+      Z = Z + log(mean(exp(w[t-1,]-mx))) + mx
       
         if(L == 1){
           for(i in 1:N){
             X[n,i] <- rnorm(1, (A*X[n-1,s[i]] + obs[n])/2, sqrt(1/2))
               
-            w[n,i] = w[n-1,i]*exp((-1/2)*(A*X[n-1,s[i]]-obs[n])^2/2)/sqrt(4*pi) #?
+            w[n,i] = log(exp((-1/2)*(A*X[n-1,s[i]]-obs[n])^2/2)/sqrt(4*pi)) #?
             
           }
           
@@ -95,7 +96,7 @@ bspf <- function(){
             }
             
             
-            w[n,i] <- w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
+            w[n,i] <- log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
               (-1/2)*(A*X[n-1,s[i]]-X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,s[i]] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
               (-1/2)*(fkf.mu[L-1] - X[n-1,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
           }
@@ -107,7 +108,7 @@ bspf <- function(){
         for(i in 1:N){
           X[n,i] <- rnorm(1, (A*X[n-1,i] + obs[n])/2, sqrt(1/2))
             
-          w[n,i] = w[n-1,i]*exp((-1/2)*(A*X[n-1,i]-obs[n])^2/2)/sqrt(4*pi)
+          w[n,i] = w[n-1,i] + log(exp((-1/2)*(A*X[n-1,i]-obs[n])^2/2)/sqrt(4*pi))
         }
         
       }else{
@@ -131,7 +132,7 @@ bspf <- function(){
     }
   }
   mx <- max(w[Time,])
-  Z <- Z + log(mean(w[Time,]))
+  Z <- Z + log(mean(exp(w[Time,]-mx))) + mx
   
   return(list(X=X, w=w, Z=Z))
 }  
