@@ -1,8 +1,8 @@
 library(FKF)
 set.seed(456)
-N=1000
-Time = 100
-L = 1
+N=100
+Time = 10
+L = 9
 A = 0.42
 
 X <- matrix(NA, Time, 2000)
@@ -52,14 +52,14 @@ Init <- function(){
     a0 <- X1
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$att
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$Ptt
-    X[L,] <- rnorm(N, fkf.mu[L], sqrt(fkf.var[L]))
+    X[L,1:N] <- rnorm(N, fkf.mu[L], sqrt(fkf.var[L]))
     
     for(p in (L-1):1){
       for(i in 1:N){
         X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(A^2*fkf.var[p] + 1),sqrt(fkf.var[p]/(A^2*fkf.var[p] + 1)))
       }
     }
-    w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
+    w[L,1:N] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
     
   }
   return(list(X=X, w=w))
@@ -93,15 +93,14 @@ re = 0
             X_[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
             
             for(p in (n-1):(n-L+1)){
-              X_[p,i] <- rnorm(1, (A*X_[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
+              X_[p,i] <- rnorm(1, (A*X_[p+1,s[i]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
             }
             
-            
             w[n,i] <- log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-              (-1/2)*(A*X[n-1,s[i]]-X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,s[i]] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
-              (-1/2)*(fkf.mu[L-1] - X[n-1,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
+              (-1/2)*(A*X[n-1,s[i]]-X_[n,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,s[i]] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
+              (-1/2)*(fkf.mu[L-1] - X_[n,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
           }
-          X[(n-L+1):n,] <- X_[(n-L+1):n,]
+          X[(n-L+1):n,1:N] <- X_[(n-L+1):n,1:N]
         }
       
     }else{
@@ -123,12 +122,12 @@ re = 0
             X_[p,i] <- rnorm(1, (A*X_[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
           }
           
-          w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1])^(-1))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
-            (-1/2)*(A*X[n-1,i]-X[n-1,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
-            (-1/2)*(fkf.mu[L-1] - X[n-1,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
+          w[n,i] = w[n-1,i] + log((2*pi*(2+1/fkf.var[L-1]))^(1/2)) - log(2*pi*(2*pi*fkf.var[L-1])^(1/2)) +
+            (-1/2)*(A*X[n-1,i]-X_[n,i])^2/(2+fkf.var[L-1]) + (-1/2)*(A*X[n-1,i] - fkf.mu[L-1])^2/((2+fkf.var[L-1])*fkf.var[L-1]) +
+            (-1/2)*(fkf.mu[L-1] - X_[n,i])^2/((2+fkf.var[L-1])*fkf.var[L-1])
           
         }
-        X[(n-L+1):n,] <- X_[(n-L+1):n,]
+        X[(n-L+1):n,1:N] <- X_[(n-L+1):n,1:N]
       }
     }
   }
