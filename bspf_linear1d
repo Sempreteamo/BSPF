@@ -1,8 +1,8 @@
 library(FKF)
-set.seed(45678)
-N=1000
+set.seed(4567)
+N=2000
 Time = 10
-L = 9
+L = 5
 A = 0.42
 
 X <- matrix(NA, Time, 2000)
@@ -46,17 +46,17 @@ fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs))$logLik
 Init <- function(){
   #X_1:L sample from q(x_1:L)=p(x_1:L|y_1:L)=p(x_L|y_1:L)*(from 1:n-1 p(x_p|y_1:p)*f)
   if(L == 1){
-    X[1,1:N] <- rnorm(N, (1 + obs[1])/2, sqrt(1/2))
-    w[1,1:N] <- log((4*pi)^(-1/2)*exp((-1/2)*(obs[1])^2/4))
+    X[1,1:N] <- rnorm(N, (obs[1])/2, sqrt(1/2))
+    w[1,1:N] <- log((4*pi)^(-1/2)*exp((-1/2)*(obs[1])^2/2))
   }else{
-    a0 <- X1
+    a0 <- 0
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$att
     fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$Ptt
     X[L,1:N] <- rnorm(N, fkf.mu[L], sqrt(fkf.var[L]))
     
     for(p in (L-1):1){
       for(i in 1:N){
-        X[p,i] <- rnorm(1, (2*A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(A^2*fkf.var[p] + 1),sqrt(fkf.var[p]/(A^2*fkf.var[p] + 1)))
+        X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(A^2*fkf.var[p] + 1),sqrt(fkf.var[p]/(A^2*fkf.var[p] + 1)))
       }
     }
     w[L,1:N] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
@@ -87,7 +87,7 @@ re = 0
           
         }else{
           for(i in 1:N){
-            a0 <- X[n-L,s[i]]
+            a0 <- A*X[n-L,s[i]]
             fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
             fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt 
             X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
@@ -112,7 +112,7 @@ re = 0
         
       }else{
         for(i in 1:N){
-          a0 <- X[n-L,i]
+          a0 <- A*X[n-L,i]
           fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
           fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt 
           X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
