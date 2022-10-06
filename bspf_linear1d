@@ -1,9 +1,12 @@
 library(FKF)
-set.seed(45679)
-N=100
-Time = 10
-L = 3
+set.seed(456)
+N=50
+Time = 1000
+L = 2
 A = 0.42
+B = 1
+C = 1
+D = 0.3
 
 X <- matrix(NA, Time, N)
 X_ <- matrix(NA, Time, N)
@@ -46,8 +49,10 @@ fkf.obj <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs))$logLik
 Init <- function(){
   #X_1:L sample from q(x_1:L)=p(x_1:L|y_1:L)=p(x_L|y_1:L)*(from 1:n-1 p(x_p|y_1:p)*f)
   if(L == 1){
-    X[1,] <- rnorm(N, (obs[1])/2, sqrt(1/2))
-    w[1,] <- log((4*pi)^(-1/2)*exp((-1/2)*(obs[1])^2/2))
+    X[1,] <-  rnorm(N, (C*obs[1]*D^2)/(D+C^2), sqrt(D/(D+C^2)))  #pass
+   
+    w[1,] <- log((2*pi*(1+D))^(-1/2)*exp((-1/2)*(obs[1])^2/(1+D)))  #pass
+      
   }else{
     a0 <- 0
     fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$att
@@ -57,9 +62,9 @@ Init <- function(){
     for(p in (L-1):1){
       for(i in 1:N){
         X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p] + fkf.mu[p])/(A^2*fkf.var[p] + 1),sqrt(fkf.var[p]/(A^2*fkf.var[p] + 1)))
-      }
+      } #pass
     }
-    w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik
+    w[L,] <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[1:L]))$logLik  #pass
     
   }
   return(list(X=X, w=w))
@@ -81,9 +86,11 @@ re = 0
         if(L == 1){
           
           for(i in 1:N){
-            X[n,i] <- rnorm(1, (A*X[n-1,s[i]] + obs[n])/2, sqrt(1/2))
-          }
-          w[n,] = log((4*pi)^(-1/2)*exp((-1/2)*(A*X[n-1,s]-obs[n])^2/2)) 
+            X[n,i] <- rnorm(1, ((1-B*C^2/(C^2*B+D))*A*X[n-1,s[i]]+obs[n]*B*C/(C^2*B+D))/2, sqrt((1-B*C^2/(C^2*B+D))*B))
+              #rnorm(1, ((1-B*C^2/(C^2*B+D))*A*X[n-1,s[i]]+obs[n]*B*C/(C^2*B+D))/2, sqrt((1-B*C^2/(C^2*B+D))*B))
+          }  #pass
+          w[n,] = log((2*pi*(B^2+D^2))^(-1/2)*exp((-1/2)*(A*X[n-1,s]-obs[n])^2/(B^2+D^2))) 
+            ##pass
           
         }else{
           for(i in 1:N){
@@ -93,20 +100,21 @@ re = 0
             X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
             
             for(p in (n-1):(n-L+1)){
-              X[p,i] <- rnorm(1, (A*X[p+1,s[i]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), 
-                               sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
-            }
+              X[p,i] <- rnorm(1, (A*X[p+1,s[i]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
+            } #pass
             
           }
-          w[n,] <- dnorm(obs[n], A*fkf.mu[L-1], sqrt(2+A^2*fkf.var[L-1]), log = TRUE)
+          w[n,] <- dnorm(obs[n], A*fkf.mu[L-1], sqrt(B^2+D^2+A^2*fkf.var[L-1]), log = TRUE)  #pass
         }
       
     }else{
       if(L == 1){
         for(i in 1:N){
-          X[n,i] <- rnorm(1, (A*X[n-1,i] + obs[n])/2, sqrt(1/2))
+          X[n,i] <- rnorm(1, ((1-B*C^2/(C^2*B+D))*A*X[n-1,i]+obs[n]*B*C/(C^2*B+D)), sqrt((1-B*C^2/(C^2*B+D))*B))
+            #rnorm(1, ((1-B*C^2/(C^2*B+D))*A*X[n-1,i]+obs[n]*B*C/(C^2*B+D)), sqrt((1-B*C^2/(C^2*B+D))*B))  #pass
             
-          w[n,i] = w[n-1,i] + log(exp((-1/2)*(A*X[n-1,i]-obs[n])^2/2)/sqrt(4*pi))
+          w[n,i] = w[n-1,i] + log((2*pi*(B^2+D^2))^(-1/2)*exp((-1/2)*(A*X[n-1,i]-obs[n])^2/(B^2+D^2)))
+              #pass
         }
         
       }else{
@@ -119,9 +127,9 @@ re = 0
           for(p in (n-1):(n-L+1)){
             X[p,i] <- rnorm(1, (A*X[p+1,i]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), 
                              sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
-          }
+          }  #pass
           
-          w[n,i] = w[n-1,i] + dnorm(obs[n], A*fkf.mu[L-1], sqrt(2+A^2*fkf.var[L-1]), log = TRUE)
+          w[n,i] = w[n-1,i] + dnorm(obs[n], A*fkf.mu[L-1], sqrt(B^2+D^2+A^2*fkf.var[L-1]), log = TRUE)  #pass
            
         }
       }
