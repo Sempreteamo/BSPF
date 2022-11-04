@@ -1,12 +1,12 @@
 library(FKF)
 set.seed(456)
-N=50
+N=100
 Time = 1000
 L = 2
 A = 0.42
 B = 1
 C = 1
-D = 0.3
+D = 1
 
 X <- matrix(NA, Time, N)
 X_ <- matrix(NA, Time, N)
@@ -34,6 +34,11 @@ ESS <- function(n,w, is.log=FALSE){
   }
   return(ess)  
 }
+
+Num <- function(Z, l, k){
+  return(sd(exp(Z[max(l-k,1):l]-max(Z[max(l-k,1):l])))/mean(exp(Z[max(l-k,1):l]-max(Z[max(l-k,1):l]))))
+}
+
 
 Obs <- function(){
   X_true[1] <- rnorm(1)   
@@ -98,15 +103,17 @@ re = 0
             fkf.mu <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$att 
             fkf.var <- fkf(a0, P0, dt, ct, Tt, Zt, Ht, Gt, yt = t(obs[(n-L+1):n]))$Ptt 
             X[n,i] <- rnorm(1, fkf.mu[L], sqrt(fkf.var[L]))
-            
+          } 
             for(p in (n-1):(n-L+1)){
-              X[p,i] <- rnorm(1, (A*X[p+1,s[i]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1)))
+              for(i in 1:N){
+                X[p,i] <- rnorm(1, (A*X[p+1,s[i]]*fkf.var[p-n+L] + fkf.mu[p-n+L])/(A^2*fkf.var[p-n+L] + 1), 
+                                sqrt(fkf.var[p-n+L]/(A^2*fkf.var[p-n+L] + 1))) 
+              }
             } #pass
             
           }
           w[n,] <- dnorm(obs[n], A*fkf.mu[L-1], sqrt(B^2+D^2+A^2*fkf.var[L-1]), log = TRUE)  #pass
-        }
-      
+        
     }else{
       if(L == 1){
         for(i in 1:N){
